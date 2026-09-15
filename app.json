@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name":   "Hyperlocal Delivery",
+    "slug":   "hyperlocal-delivery",
+    "scheme": "hyperlocal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon":    "./assets/images/icon.png",
+    "splash": {
+      "image":           "./assets/images/splash.png",
+      "resizeMode":      "contain",
+      "backgroundColor": "#16a34a"
+    },
+    "ios":     { "supportsTablet": false, "bundleIdentifier": "in.hyperlocal.delivery" },
+    "android": {
+      "adaptiveIcon": { "foregroundImage": "./assets/images/adaptive-icon.png", "backgroundColor": "#16a34a" },
+      "package": "in.hyperlocal.delivery",
+      "permissions": ["ACCESS_FINE_LOCATION","ACCESS_COARSE_LOCATION","CAMERA","READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-location", { "locationAlwaysAndWhenInUsePermission": "Allow Hyperlocal to access your location." }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
