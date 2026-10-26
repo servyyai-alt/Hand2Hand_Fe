@@ -55,6 +55,24 @@ export default function VerifyOTPScreen() {
         await storageService.saveTokens(data.accessToken, data.refreshToken);
         await storageService.saveUser(data.user);
       } catch {}
+
+      if (data.user.role === 'DELIVERY_PARTNER') {
+        const u = data.user;
+        const isApproved =
+          u.adminApprovalStatus === 'APPROVED' &&
+          u.superAdminApprovalStatus === 'APPROVED' &&
+          u.accountStatus === 'ACTIVE' &&
+          Boolean(u.canWork);
+        if (isApproved) {
+          router.replace('/(partner)');
+        } else {
+          router.replace('/(partner)/application-status' as never);
+        }
+      } else if (data.user.role === 'CUSTOMER') {
+        router.replace('/(customer)');
+      } else if (['ADMIN', 'SUPER_ADMIN'].includes(data.user.role)) {
+        router.replace('/admin' as never);
+      }
     } catch (err: unknown) {
       showToast('error', 'Invalid OTP', getApiError(err));
       setOtp(['','','','','','']);
