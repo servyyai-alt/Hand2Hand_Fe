@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Platform, Image } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../../src/services/api.service';
 import { SlideUp } from '../../../src/components/animations/SlideUp';
@@ -31,7 +31,17 @@ export default function EarningsScreen() {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.brand[600]} />}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.screenTitle}>Earnings</Text>
+      <View style={styles.headerRow}>
+        <Image
+          source={require('../../../assets/images/logo.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
+        <View>
+          <Text style={styles.screenTitle}>Earnings</Text>
+          <Text style={styles.screenSub}>Partner payouts & history</Text>
+        </View>
+      </View>
 
       {/* Period tabs */}
       <View style={styles.tabs}>
@@ -104,7 +114,10 @@ export default function EarningsScreen() {
 const styles = StyleSheet.create({
   screen:        { flex:1, backgroundColor:'#f9fafb' },
   content:       { padding:spacing.base, paddingTop:spacing['4xl'], paddingBottom:40 },
-  screenTitle:   { fontSize:20, fontWeight:'700', color:colors.neutral[900], marginBottom:16 },
+  headerRow:     { flexDirection:'row', alignItems:'center', gap:10, marginBottom:16 },
+  headerLogo:    { width:38, height:38, borderRadius:10 },
+  screenTitle:   { fontSize:20, fontWeight:'800', color:colors.neutral[900] },
+  screenSub:     { fontSize:12, color:colors.neutral[500], marginTop:1 },
   tabs:          { flexDirection:'row', backgroundColor:colors.neutral[100], borderRadius:12, padding:4, marginBottom:20 },
   tab:           { flex:1, paddingVertical:8, borderRadius:9, alignItems:'center' },
   tabActive:     { backgroundColor:'#fff', ...Platform.select({ web: { boxShadow:'0 1px 2px rgba(0,0,0,0.05)' }, default: { shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.05, shadowRadius:2, elevation:1 } }) },

@@ -6,14 +6,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { store } from '../src/store';
-import { setCredentials, setLoading } from '../src/store/slices/authSlice';
+import { setCredentials, setLoading, updateUser, logout } from '../src/store/slices/authSlice';
 import { storageService } from '../src/services/storage.service';
 import { apiClient } from '../src/services/api.service';
 import { useAppSelector } from '../src/hooks/useAppSelector';
 import Toast from 'react-native-toast-message';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry:1, staleTime:30_000 } },
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          return false;
+        }
+        return failureCount < 1;
+      },
+      staleTime: 30_000,
+    },
+  },
 });
 
 // Keep native render errors visible in Expo Go instead of leaving the app on a blank screen.
@@ -44,14 +54,25 @@ function RootNavigator() {
         ]);
 
         if (accessToken && user) {
-          // Validate token with backend
-          const res = await apiClient.get('/auth/me');
-          const freshUser = res.data.data;
+          // Prime store with cached credentials so outgoing requests carry auth
           store.dispatch(setCredentials({
-            user: freshUser,
+            user: user as any,
             accessToken,
             refreshToken: refreshToken || '',
           }));
+
+          // Validate or refresh session with backend
+          try {
+            const res = await apiClient.get('/auth/me');
+            const freshUser = res.data.data;
+            store.dispatch(updateUser(freshUser));
+            await storageService.saveUser(freshUser);
+          } catch (meErr: any) {
+            if (meErr?.response?.status === 401) {
+              await storageService.clearAll();
+              store.dispatch(logout());
+            }
+          }
         } else {
           store.dispatch(setLoading(false));
         }
@@ -66,22 +87,30 @@ function RootNavigator() {
   useEffect(() => {
     if (auth.isLoading) return;
     const inAuth = segments[0] === '(auth)';
+    const isPartnerRoute = segments[0] === 'partner';
 
     if (!auth.isAuthenticated) {
-      if (!inAuth) router.replace('/(auth)/login');
+      if (auth.isGuest) {
+        if (!inAuth && !isPartnerRoute && segments[0] !== '(customer)') {
+          router.replace('/(customer)');
+        }
+        return;
+      }
+      if (!inAuth && !isPartnerRoute) router.replace('/(auth)/login');
       return;
     }
 
     const { role } = auth.user!;
-    if (role === 'CUSTOMER' && segments[0] !== '(customer)') {
+    if (role === 'CUSTOMER' && segments[0] !== '(customer)' && !isPartnerRoute) {
       router.replace('/(customer)');
-    } else if (role === 'DELIVERY_PARTNER' && segments[0] !== '(partner)') {
+    } else if (role === 'DELIVERY_PARTNER' && segments[0] !== '(partner)' && !isPartnerRoute) {
       router.replace('/(partner)');
     } else if (['ADMIN','SUPER_ADMIN'].includes(role)) {
-      // Admin uses web — redirect gracefully
-      router.replace('/(auth)/login');
+      if (segments[0] !== 'admin') {
+        router.replace('/admin' as never);
+      }
     }
-  }, [auth.isAuthenticated, auth.isLoading, auth.user?.role]);
+  }, [auth.isAuthenticated, auth.isLoading, auth.isGuest, auth.user?.role, segments]);
 
   return <Slot />;
 }

@@ -31,9 +31,24 @@ class SocketService {
 
   off(event: string, handler?: (...args: unknown[]) => void) { this.socket?.off(event, handler); }
 
-  joinDeliveryRoom(deliveryId: string) { this.socket?.emit('join:delivery', deliveryId); }
+  joinDeliveryRoom(deliveryId: string) {
+    this.socket?.emit('delivery:joinRoom', deliveryId);
+  }
 
-  leaveDeliveryRoom(deliveryId: string) { this.socket?.emit('leave:delivery', deliveryId); }
+  leaveDeliveryRoom(deliveryId: string) {
+    this.socket?.emit('delivery:leaveRoom', deliveryId);
+  }
+
+  sendLocationUpdate(
+    deliveryId: string,
+    coords: { lat: number; lng: number; heading?: number; speed?: number; accuracy?: number }
+  ) {
+    this.socket?.emit('partner:locationUpdate', {
+      deliveryId,
+      coords,
+      timestamp: Date.now(),
+    });
+  }
 
   get isConnected() { return this.socket?.connected ?? false; }
 }

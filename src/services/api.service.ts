@@ -3,7 +3,7 @@ import { store } from '../store';
 import { logout, updateAccessToken } from '../store/slices/authSlice';
 import { storageService } from './storage.service';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -11,10 +11,27 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Helper to set authorization header safely on AxiosHeaders or plain object
+const setAuthHeader = (headers: any, token: string) => {
+  if (!headers) return;
+  if (typeof headers.set === 'function') {
+    headers.set('Authorization', `Bearer ${token}`);
+  } else {
+    headers.Authorization = `Bearer ${token}`;
+  }
+};
+
 // Attach access token
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = store.getState().auth.accessToken;
-  if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
+apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  let token = store.getState().auth.accessToken;
+  if (!token) {
+    try {
+      token = await storageService.getAccessToken();
+    } catch {}
+  }
+  if (token && config.headers) {
+    setAuthHeader(config.headers, token);
+  }
   return config;
 });
 
@@ -30,13 +47,22 @@ const processQueue = (error: unknown, token: string | null = null) => {
 apiClient.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
-    const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry) {
+    const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+    if (!original) return Promise.reject(error);
+
+    const isNonRefreshableAuth =
+      original.url?.includes('/auth/login') ||
+      original.url?.includes('/auth/register') ||
+      original.url?.includes('/auth/refresh-token') ||
+      original.url?.includes('/auth/verify-otp') ||
+      original.url?.includes('/auth/resend-otp');
+
+    if (error.response?.status === 401 && !original._retry && !isNonRefreshableAuth) {
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then(token => {
-          original.headers.Authorization = `Bearer ${token}`;
+          if (original.headers) setAuthHeader(original.headers, token);
           return apiClient(original);
         });
       }
@@ -47,10 +73,11 @@ apiClient.interceptors.response.use(
         if (!refreshToken) throw new Error('No refresh token');
         const res = await axios.post(`${BASE_URL}/auth/refresh-token`, { refreshToken });
         const { accessToken } = res.data.data;
-        await storageService.saveTokens(accessToken, res.data.data.refreshToken || refreshToken);
+        const newRefreshToken = res.data.data.refreshToken || refreshToken;
+        await storageService.saveTokens(accessToken, newRefreshToken);
         store.dispatch(updateAccessToken(accessToken));
         processQueue(null, accessToken);
-        original.headers.Authorization = `Bearer ${accessToken}`;
+        if (original.headers) setAuthHeader(original.headers, accessToken);
         return apiClient(original);
       } catch (err) {
         processQueue(err, null);
